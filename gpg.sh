@@ -158,5 +158,5 @@ docker_opts+=("--tmpfs" "/run/user/$(id -u):mode=700,uid=$(id -u),gid=$(id -g)")
 docker_opts+=("-e" "GPG_HOME_CONTAINER=${gpg_home_container}")
 
 #echo "Running command in container: gpg ${gpg_args[*]}"
-echo docker run --rm "${docker_opts[@]}" "$DOCKER_IMAGE" "${gpg_args[@]}"
+#echo docker run --rm "${docker_opts[@]}" "$DOCKER_IMAGE" "${gpg_args[@]}"
 docker run --rm "${docker_opts[@]}" "$DOCKER_IMAGE" "${gpg_args[@]}"
