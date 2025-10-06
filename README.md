@@ -105,7 +105,7 @@ gpg --encrypt --recipient "user@example.com" mydocument.txt
 #### Decrypt a file
 You will be prompted for your passphrase to unlock the private key.
 ```shell
-gpg --decrypt mydocument.txt.gpg > mydocument.txt
+gpg --decrypt mydocument.txt.gpg
 ```
 
 ---
