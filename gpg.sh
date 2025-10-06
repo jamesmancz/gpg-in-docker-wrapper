@@ -11,6 +11,61 @@ if ! docker image inspect "$DOCKER_IMAGE" &>/dev/null; then
   echo "Image built successfully."
 fi
 
+# --- Functions
+
+# add_mount adds a volume mount if the host path hasn't been mounted already.
+# It prevents "duplicate mount point" errors from Docker.
+# Usage: add_mount "/path/on/host" "/path/in/container"
+add_mount() {
+    local host_path="$1"
+    local container_path="$2"
+    for seen in "${seen_paths[@]}"; do
+        if [[ "$seen" == "$host_path" ]]; then
+            return
+        fi
+    done
+    docker_opts+=("-v" "${host_path}:${container_path}")
+    seen_paths+=("$host_path")
+}
+
+# find_container_path_for translates a host file path to its corresponding path
+# inside the container, based on the volume mounts we've set up.
+# Usage: new_path=$(find_container_path_for "/path/on/host/file.txt")
+find_container_path_for() {
+    local file_path="$1"
+    local abs_file_path
+    abs_file_path=$(cd "$(dirname -- "$file_path")" && pwd)/$(basename -- "$file_path")
+
+    # Loop through the docker options to find the mount mapping
+    for i in "${!docker_opts[@]}"; do
+        if [[ "${docker_opts[i]}" == "-v" ]]; then
+            local mount_mapping="${docker_opts[i+1]}"
+            # If the absolute file path starts with the host part of the mount, we have a match
+            [[ "$abs_file_path" == "${mount_mapping%%:*}"* ]] && echo "${mount_mapping#*:}/$(basename -- "$file_path")" && return
+        fi
+    done
+}
+
+# handle_file_path processes a file path argument, creating a new volume mount
+# if its directory isn't already mounted, and rewriting the path for the container.
+# Usage: handle_file_path "/path/on/host/file.txt"
+handle_file_path() {
+    local file_path="$1" # The original file path from the user
+    local abs_dir      # The absolute path of the file's directory on the host
+    abs_dir=$(cd "$(dirname -- "$file_path")" && pwd)
+
+    # Check if this directory is already mounted; if not, create a new mount
+    if ! [[ " ${seen_paths[*]} " =~ " ${abs_dir} " ]]; then
+        ((mount_count++))
+        local container_path="/work/${mount_count}"
+        add_mount "$abs_dir" "$container_path"
+    fi
+
+    # Find the corresponding container path for this directory and rewrite the file path
+    gpg_args+=("$(find_container_path_for "$file_path")")
+}
+
+
 # --- Argument Parsing
 # This logic finds file paths and the --homedir argument to set up Docker mounts 
 # to the local file-system
@@ -39,29 +94,7 @@ gpg_home_container="/home/gpguser/.gnupg"
 # Track if user explicitly set --homedir or --passphrase
 user_set_homedir=false
 passphrase_provided=false
-
-# Function to add a volume mount if the path hasn't been seen before
-add_mount() {
-    local host_path="$1"
-    local container_path="$2"
-    for seen in "${seen_paths[@]}"; do
-        if [[ "$seen" == "$host_path" ]]; then
-            return
-        fi
-    done
-    docker_opts+=("-v" "${host_path}:${container_path}")
-    seen_paths+=("$host_path")
-}
-
-# Function to handle a file path argument
-handle_file_path() {
-    local file_path="$1"
-    # Get the absolute path of the file's directory
-    local abs_dir
-    abs_dir=$(cd "$(dirname -- "$file_path")" && pwd)
-    add_mount "$abs_dir" "/work"
-    gpg_args+=("/work/$(basename -- "$file_path")")
-}
+mount_count=0
 
 # Loop through all arguments to build Docker options and GPG command
 while [ "$#" -gt 0 ]; do
@@ -125,5 +158,5 @@ docker_opts+=("--tmpfs" "/run/user/$(id -u):mode=700,uid=$(id -u),gid=$(id -g)")
 docker_opts+=("-e" "GPG_HOME_CONTAINER=${gpg_home_container}")
 
 #echo "Running command in container: gpg ${gpg_args[*]}"
-#echo docker run --rm "${docker_opts[@]}" "$DOCKER_IMAGE" "${gpg_args[@]}"
+echo docker run --rm "${docker_opts[@]}" "$DOCKER_IMAGE" "${gpg_args[@]}"
 docker run --rm "${docker_opts[@]}" "$DOCKER_IMAGE" "${gpg_args[@]}"
