@@ -56,7 +56,7 @@ handle_file_path() {
 
     # Check if this directory is already mounted; if not, create a new mount
     if ! [[ " ${seen_paths[*]} " =~ " ${abs_dir} " ]]; then
-        ((mount_count++))
+        ((++mount_count))
         local container_path="/work/${mount_count}"
         add_mount "$abs_dir" "$container_path"
     fi
@@ -64,11 +64,6 @@ handle_file_path() {
     # Find the corresponding container path for this directory and rewrite the file path
     gpg_args+=("$(find_container_path_for "$file_path")")
 }
-
-
-# --- Argument Parsing
-# This logic finds file paths and the --homedir argument to set up Docker mounts 
-# to the local file-system
 
 # Initialise arrays
 declare -a docker_opts
@@ -86,6 +81,10 @@ fi
 
 # Allow Ctrl-C to be sent to gpg
 docker_opts+=("--init")
+
+# --- Argument Parsing
+# This logic finds file paths and the --homedir argument to set up Docker mounts 
+# to the local file-system
 
 # Default GPG home directory if --homedir is not specified
 gpg_home_host="${GNUPGHOME:-$HOME/.gnupg}"
