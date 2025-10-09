@@ -7,7 +7,7 @@ DOCKER_IMAGE="gpg-cli:latest"
 # We could put this in a container registry, but for now just build locally if needed
 if ! docker image inspect "$DOCKER_IMAGE" &>/dev/null; then
   echo "Docker image '$DOCKER_IMAGE' not found, building..."
-  docker build -t "$DOCKER_IMAGE" "$(dirname "$0")"
+  docker build -t "$DOCKER_IMAGE" "$(dirname "$(readlink -f "$0")")"
   echo "Image built successfully."
 fi
 
